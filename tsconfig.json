@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "types": ["node"],
+    "module": "commonjs",
+    "pretty": true,
+    "noImplicitReturns": true,
+    "outDir": "lib",
+    "sourceMap": false,
+    "target": "es2017",
+    "esModuleInterop": true,
+    "removeComments": true
+  },
+  "compileOnSave": true,
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.spec.ts"
+  ]
+}
