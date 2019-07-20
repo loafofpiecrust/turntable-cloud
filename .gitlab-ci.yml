@@ -1,0 +1,9 @@
+image: "node:8-alpine"
+
+build:
+  script:
+  - npm ci && npm run build
+
+deploy:
+  script:
+  - serverless deploy --stage prod
