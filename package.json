@@ -2,7 +2,7 @@
   "name": "turntable-cloud",
   "scripts": {
     "lint": "tslint --project tsconfig.json",
-    "build": "npm ci && tsc",
+    "build": "tsc",
     "clean": "rm -rf lib/*",
     "bundle": "npm run clean && npm run build",
     "deploy": "npm run bundle && serverless deploy -f findSongOnYouTube",
