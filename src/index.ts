@@ -35,7 +35,7 @@ const simplifyStreamFormat = (format: ytdl.videoFormat) => ({
   bitrate: format.audioBitrate,
 })
 
-async function findSongOnYouTube(song: Song): Promise<string> {
+async function findSongOnYouTube(song: Song): Promise<string[]> {
   let query = `${song.title} ${song.artist}`
   if (song.album && song.album !== song.artist && song.album.length <= 40) {
     query = `${query} ${song.album}`
@@ -109,82 +109,69 @@ async function findSongOnYouTube(song: Song): Promise<string> {
   }))
 
   const validChoices = choices.filter(x => x !== null)
-  if (validChoices.length === 0) {
-    return null
-  }
-
-  // either pick the first great match or best overall.
-  const firstPick = validChoices.find(choice => choice.matchRatio >= 90)
-
-  if (firstPick) {
-    return firstPick.id
-  } else {
-    let best = validChoices[0]
-    for (const choice of validChoices) {
-      if (choice.matchRatio > best.matchRatio) {
-        best = choice
-      }
-    }
-    return best.id
-  }
+  validChoices.sort((a, b) => b.matchRatio - a.matchRatio)
+  return validChoices.map(x => x.id)
 }
 
+
 async function findStream(song: Song) {
-  const videoId = await findSongOnYouTube(song)
+  // consider the three best options
+  const videoIds = (await findSongOnYouTube(song)).slice(0, 3)
 
-  if (!videoId) {
+  for (const videoId of videoIds) {
+    const info = await ytdl.getInfo(videoId)
+
+    const formats = ytdl.filterFormats(info.formats, "audioonly")
+    // Respond with relevant streams: pick a low and high quality.
+    let hq = formats[0]
+    let lq = null
+    // TODO: Prioritize format types!
+    for (const f of formats) {
+      if (f.audioBitrate > hq.audioBitrate) {
+        hq = f
+      }
+    }
+    for (const f of formats) {
+      if ((!lq || f.audioBitrate > lq.audioBitrate) && f.audioBitrate < hq.audioBitrate && f.audioBitrate >= 100) {
+        lq = f
+      }
+    }
+
+    // Always provide a standard stream, only hq if there are multiple options.
+    if (lq === null) {
+      lq = hq
+      hq = null
+    }
+
+    const now = Date.now()
+    const expiryDate = expiryDateFromStreamUrl(lq.url)
+
+    // this stream couldn't be fully decoded, try the next one.
+    if (expiryDate === 0) {
+      continue
+    }
+    
     return {
-      highQuality: null,
-      lowQuality: null,
+      id: videoId,
+      highQuality: hq ? simplifyStreamFormat(hq) : null,
+      lowQuality: simplifyStreamFormat(lq),
+      duration: Number.parseInt(info.length_seconds) * 1000,
+      expiryDate,
+      lifespan: expiryDate - now,
     }
   }
 
-  let info: ytdl.videoInfo;
-  try {
-    info = await ytdl.getInfo(videoId)
-  } catch (err) {
-    // console.error(`Failed to retrieve info for video '${videoId}'`)
-    throw err
-  }
-
-  const formats = ytdl.filterFormats(info.formats, "audioonly")
-  // Respond with relevant streams: pick a low and high quality.
-  let hq = formats[0]
-  let lq = null
-  // TODO: Prioritize format types!
-  for (const f of formats) {
-    if (f.audioBitrate > hq.audioBitrate) {
-      hq = f
-    }
-  }
-  for (const f of formats) {
-    if ((!lq || f.audioBitrate > lq.audioBitrate) && f.audioBitrate < hq.audioBitrate && f.audioBitrate >= 100) {
-      lq = f
-    }
-  }
-
-  // Always provide a standard stream, only hq if there are multiple options.
-  if (lq === null) {
-    lq = hq
-    hq = null
-  }
-
-  const now = Date.now()
-  const expiryDate = expiryDateFromStreamUrl(lq.url)
-  
   return {
-    id: videoId,
-    highQuality: hq ? simplifyStreamFormat(hq) : null,
-    lowQuality: simplifyStreamFormat(lq),
-    duration: Number.parseInt(info.length_seconds) * 1000,
-    expiryDate,
-    lifespan: expiryDate - now,
+    highQuality: null,
+    lowQuality: null,
   }
 }
 
 /// ? Search youtube for match here on server.
 export const handler = async (event: APIGatewayProxyEvent) => {
-  const q = event.queryStringParameters
+  const isFromAPI = event.queryStringParameters ? true : false;
+  // allows calling lambda directly or from an API endpoint
+  const q = (event.queryStringParameters || event) as any
   const song = {
     title: q.title,
     album: q.album,
@@ -193,12 +180,22 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     duration: q.duration ? Number.parseInt(q.duration) : 0,
   }
 
-  const result = await findStream(song)
+  let result;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    result = await findStream(song)
+    if (result.expiryDate !== 0) {
+      break
+    }
+  }
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify(result),
-  } as APIGatewayProxyResult
+  if (isFromAPI) {
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result),
+    } as APIGatewayProxyResult
+  } else {
+    return result
+  }
 }
 
 // TODO: Album search + parse track listing from description

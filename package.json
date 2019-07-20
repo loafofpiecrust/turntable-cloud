@@ -6,13 +6,14 @@
     "clean": "rm -rf lib/*",
     "bundle": "npm run clean && npm run build",
     "deploy": "npm run bundle && serverless deploy -f findSongOnYouTube",
-    "deploy:prod": "npm run bundle && serverless deploy --stage prod"
+    "deploy:prod": "npm run bundle && serverless deploy --stage prod",
+    "serve": "npm run build && serverless offline"
   },
   "main": "index.js",
   "dependencies": {
     "fuzzball": "^1.2.0",
     "scrape-youtube": "0.0.4",
-    "ytdl-core": "git://github.com/fent/node-ytdl-core.git#ab374c370a93770f749ff3817885eda81c570164"
+    "ytdl-core": "0.29.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.24",
@@ -20,6 +21,7 @@
     "chai": "^4.2.0",
     "mocha": "^6.1.4",
     "serverless": "^1.48.1",
+    "serverless-offline": "^5.8.0",
     "tslint": "^5.16.0",
     "typescript": "^3.4.5"
   },
