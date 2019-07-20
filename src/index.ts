@@ -119,7 +119,13 @@ async function findStream(song: Song) {
   const videoIds = (await findSongOnYouTube(song)).slice(0, 3)
 
   for (const videoId of videoIds) {
-    const info = await ytdl.getInfo(videoId)
+    let info: ytdl.videoInfo;
+    try {
+      info = await ytdl.getInfo(videoId)
+    } catch (err) {
+      console.error(`Failed to retrieve info for video '${videoId}'`)
+      continue
+    }
 
     const formats = ytdl.filterFormats(info.formats, "audioonly")
     // Respond with relevant streams: pick a low and high quality.
