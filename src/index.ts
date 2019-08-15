@@ -20,6 +20,21 @@ interface Song {
   duration: number // milliseconds
 }
 
+interface AudioStream {
+  url: string,
+  format: string,
+  bitrate: number,
+}
+
+type SongStreams = {
+  id: string,
+  highQuality?: AudioStream,
+  lowQuality: AudioStream,
+  duration: number,
+  expiryDate: number,
+  lifespan: number,
+} | { highQuality: null, lowQuality: null, expiryDate: 0 }
+
 function expiryDateFromStreamUrl(url: string): number {
   const m = PAT_EXPIRY.exec(url)
   if (m !== null) {
@@ -57,7 +72,7 @@ async function findSongOnYouTube(song: Song): Promise<string[]> {
       return null
     }
 
-    // const dateMatch = PAT_DATE.exec(ytTitle)
+    // const dateMatch = PAT_DATE.exec(yt.title)
     // if (dateMatch && !song.title.includes(dateMatch[0])) {
     //   return null
     // }
@@ -114,7 +129,7 @@ async function findSongOnYouTube(song: Song): Promise<string[]> {
 }
 
 
-async function findStream(song: Song) {
+async function findStream(song: Song): Promise<SongStreams> {
   // consider the three best options
   const videoIds = (await findSongOnYouTube(song)).slice(0, 3)
 
@@ -170,11 +185,12 @@ async function findStream(song: Song) {
   return {
     highQuality: null,
     lowQuality: null,
+    expiryDate: 0,
   }
 }
 
 /// ? Search youtube for match here on server.
-export const handler = async (event: APIGatewayProxyEvent) => {
+export async function handler(event: APIGatewayProxyEvent): Promise<any> {
   const isFromAPI = event.queryStringParameters ? true : false;
   // allows calling lambda directly or from an API endpoint
   const q = (event.queryStringParameters || event) as any
@@ -186,7 +202,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     duration: q.duration ? Number.parseInt(q.duration) : 0,
   }
 
-  let result;
+  let result: SongStreams;
   for (let attempt = 0; attempt < 3; attempt++) {
     result = await findStream(song)
     if (result.expiryDate !== 0) {
@@ -198,6 +214,9 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     return {
       statusCode: 200,
       body: JSON.stringify(result),
+      headers: {
+        "Access-Control-Allow-Origin": "*"
+      },
     } as APIGatewayProxyResult
   } else {
     return result

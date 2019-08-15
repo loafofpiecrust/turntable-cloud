@@ -1,21 +1,22 @@
 service: turntable-cloud
 
 plugins:
+- serverless-plugin-typescript
 - serverless-offline
 
 provider:
   name: aws
-  runtime: nodejs8.10
   region: us-east-2
-  memory: 768
   stage: dev
-
-package:
-  include:
-    - lib/**/*.js
-  exclude:
-    - src/**
+  runtime: nodejs8.10
 
 functions:
   findSongOnYouTube:
-    handler: lib/index.handler
+    runtime: nodejs8.10
+    handler: src/index.handler
+    memorySize: 768
+    events:
+    - http:
+        method: get
+        path: findSongOnYouTube
+    
