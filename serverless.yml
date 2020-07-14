@@ -8,12 +8,11 @@ provider:
   name: aws
   region: us-east-2
   stage: dev
-  runtime: nodejs8.10
+  runtime: nodejs12.x
 
 functions:
   findSongOnYouTube:
-    runtime: nodejs8.10
-    handler: src/index.handler
+    handler: src/song-streams.handler
     memorySize: 768
     events:
     - http:

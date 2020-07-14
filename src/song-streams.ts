@@ -1,7 +1,8 @@
 import ytdl from 'ytdl-core'
 import fuzzball from 'fuzzball'
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
-import scrapeYt from 'scrape-youtube'
+import { Youtube, SearchResult } from 'scrape-youtube'
+import { Song, SongStreams } from "./types"
 
 const PAT_UNOFFICIAL = /\b(live|remix|mix|cover|unofficial|instrumental|sessions)\b/i
 const PAT_EXPIRY = /\bexpire=(\d+)\b/
@@ -11,29 +12,6 @@ const fuzzyOpts = {
   force_ascii: false,
   full_process: true,
 }
-
-interface Song {
-  title: string
-  album: string
-  artist: string
-  albumArtist: string
-  duration: number // milliseconds
-}
-
-interface AudioStream {
-  url: string,
-  format: string,
-  bitrate: number,
-}
-
-type SongStreams = {
-  id: string,
-  highQuality?: AudioStream,
-  lowQuality: AudioStream,
-  duration: number,
-  expiryDate: number,
-  lifespan: number,
-} | { highQuality: null, lowQuality: null, expiryDate: 0 }
 
 function expiryDateFromStreamUrl(url: string): number {
   const m = PAT_EXPIRY.exec(url)
@@ -46,7 +24,7 @@ function expiryDateFromStreamUrl(url: string): number {
 
 const simplifyStreamFormat = (format: ytdl.videoFormat) => ({
   url: format.url,
-  format: format.audioEncoding,
+  format: format.audioCodec,
   bitrate: format.audioBitrate,
 })
 
@@ -56,7 +34,8 @@ async function findSongOnYouTube(song: Song): Promise<string[]> {
     query = `${query} ${song.album}`
   }
   
-  const res = await scrapeYt(query, {
+  const youtube = new Youtube()
+  const res = await youtube.search(query, {
     limit: 6,
     type: "video",
   })
@@ -96,7 +75,7 @@ async function findSongOnYouTube(song: Song): Promise<string[]> {
 
     const desc = (yt.description || "").toLowerCase()
 
-    let artistMatch = fuzzball.partial_ratio(song.artist, yt.channel, fuzzyOpts)
+    let artistMatch = fuzzball.partial_ratio(song.artist, yt.channel.name, fuzzyOpts)
     if (artistMatch < 85) {
       artistMatch = fuzzball.partial_ratio(song.artist, yt.title, fuzzyOpts)
       if (artistMatch < 85 && !desc.includes(song.artist)) {
